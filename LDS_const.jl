@@ -45,27 +45,3 @@ Optimization/Dynamics Parameters
 """
 lb = repeat([-0.1, -0.2], num_steps*2)
 ub = repeat([0.1, 0.2], num_steps*2)
-
-
-"""
-----------------------------------------------
-Nearest Neighbor Parameters
-----------------------------------------------
-"""
-# n_bins = 20
-
-# @load "neighbor_info.jld2" X u_binned
-# kdtree = KDTree(X)
-
-"""
-----------------------------------------------
-Neural Net Parameters
-----------------------------------------------
-"""
-ns = 4
-nhidden = 500
-k = num_steps*step_time
-
-nn_ϕ = Chain(Dense(ns, nhidden, relu), Dense(nhidden, num_features, relu))
-@load "nn_weights.bson" weights
-Flux.loadparams!(nn_ϕ, weights)

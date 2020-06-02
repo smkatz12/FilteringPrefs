@@ -52,30 +52,9 @@ function get_inputs(query_type)
 		u = u_binned[idx[1], :]
 	else
 		inner_optimizer = LBFGS(linesearch = LineSearches.BackTracking())
-		#res = Optim.optimize(objec, lb, ub, initvals, Fminbox(inner_optimizer), Optim.Options(show_trace=false, g_tol=1e-8, x_tol=1e-8, f_tol=1e-8); autodiff=:forward)
 		objec = query_type == :info_gain ? objec1 : objec2
 		res = Optim.optimize(objec, lb, ub, initvals, Fminbox(inner_optimizer), Optim.Options(show_trace=false), autodiff=:forward)
 		u = Optim.minimizer(res)
-		#println(Optim.minimum(res))
-	end
-	return u
-end
-
-function get_inputs_nn(query_type)
-	initvals = rand.(Distributions.Uniform.(lb,ub))
-	if query_type == :random
-		u = initvals
-	elseif query_type == :knn
-		point = bin_samples(W, n_bins)
-		idx, _ = knn(kdtree, point, 1, true)
-		u = u_binned[idx[1], :]
-	else
-		inner_optimizer = LBFGS(linesearch = LineSearches.BackTracking())
-		#res = Optim.optimize(objec, lb, ub, initvals, Fminbox(inner_optimizer), Optim.Options(show_trace=false, g_tol=1e-8, x_tol=1e-8, f_tol=1e-8); autodiff=:forward)
-		objec = query_type == :info_gain ? objec1 : objec2
-		res = Optim.optimize(objec, lb, ub, initvals, Fminbox(inner_optimizer), Optim.Options(show_trace=false), autodiff=:forward)
-		u = Optim.minimizer(res)
-		#println(Optim.minimum(res))
 	end
 	return u
 end
@@ -92,18 +71,6 @@ function objec2(u::Vector)
 	return -min(sum(1 .- f(ψ)), sum(1 .- f(-ψ)))
 end
 
-function objec1_nn(u::Vector)
-	_, _, ψ = get_ψ_nn(u)
-	pq1 = f(ψ)
-	pq2 = f(-ψ)
-	return -(sum(pq1 .* log2.(M .* pq1 ./ sum(pq1))) + sum(pq2 .* log2.(M .* pq2 ./ sum(pq2))))
-end
-
-function objec2_nn(u::Vector)
-	_, _, ψ = get_ψ_nn(u)
-	return -min(sum(1 .- f(ψ)), sum(1 .- f(-ψ)))
-end
-
 function f(ψ::Vector)
 	return 1 ./ (1 .+ exp.(-W'*ψ))
 end
@@ -115,13 +82,6 @@ function get_ψ(u_tot::Vector)
 	return x₁, x₂, ψ
 end
 
-function get_ψ_nn(u_tot::Vector)
-	x₁, ϕ₁ = get_ϕ_nn(u_tot[1:num_steps*ctrl_size])
-	x₂, ϕ₂ = get_ϕ_nn(u_tot[num_steps*ctrl_size+1:end])
-	ψ = ϕ₁ - ϕ₂
-	return x₁, x₂, Tracker.data(ψ)
-end
-
 function get_ϕ(u::Vector)
 	x = get_x_mat(u)
 	return x, ϕ(x)
@@ -129,19 +89,6 @@ end
 
 function ϕ(x::Array)
 	return [3mean(x[2,:]), 3mean(x[4,:]), 3mean(abs.(x[1,:] .- 1)), 3mean(abs.(x[3,:] .- 1))]
-end
-
-function get_ϕ_nn(u::Vector)
-	x = get_x_mat(u)
-	return x, ϕ_nn(x)
-end
-
-function ϕ_nn(x::Array)
-	ϕ = zeros(num_features)
-	for i = 1:num_steps
-		ϕ += nn_ϕ(x[:,i])
-	end
-	return ϕ
 end
 
 function get_x_mat(u::Vector)
@@ -198,51 +145,4 @@ function post_process_w_hist(w_hist::Vector, w_true::Vector)
 	end
 
 	return m, w_mean_hist
-end
-
-function write_W(s::IOStream)
-	for i = 1:size(W,1)
-		for j = 1:size(W,2)
-			write(s, W[i,j])
-		end
-	end
-end
-
-function write_u(s::IOStream, u::Vector)
-	for i = 1:length(u)
-		write(s, u[i])
-	end
-end
-
-function bin_samples(W, nbins)
-	cutpoints = collect(range(-1, stop=1, length=n_bins+1))
-	x = zeros(n_bins*4)
-	for j = 1:4
-		counts = zeros(n_bins)
-		for k = 1:150
-			bin = findfirst(cutpoints .> W[j,k]) - 1
-			counts[bin] += 1
-		end
-		x[n_bins*(j-1)+1:n_bins*j] = counts
-	end
-	return x
-end
-
-function generate_test_set(w_true, num_examples)
-	X =[]
-	Y = zeros(num_examples)
-	for i = 1:num_examples
-		u = rand.(Distributions.Uniform.(lb,ub))
-		x₁, x₂, ψ = get_ψ(u)
-		x₁ = reshape(x₁, (1, length(x₁)))
-		x₂ = reshape(x₂, (1, length(x₂)))
-		X = i == 1 ? hcat(x₁, x₂) : [X; hcat(x₁, x₂)]
-		p = sigmoid(w_true'*ψ)
-		# p = round(p) # This line is if want perfect decision making (comment to put back human decision model)
-		Y[i] = p ≥ rand() ? 1 : -1
-	end
-	for i = 1:length(Y)
-		Y[i] == -1 ? Y[i] = 0 : nothing
-	end
-	return X, Y
 end
