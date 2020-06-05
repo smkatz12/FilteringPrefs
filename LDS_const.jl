@@ -15,7 +15,7 @@ end
 General Size Parameters
 ----------------------------------------------
 """
-M = 150 # Number of weights to sample to estimate the objective function
+M = 1000 # Number of weights to sample to estimate the objective function
 num_features = 4
 num_steps = 5
 step_time = 5
@@ -37,6 +37,25 @@ MCMC Parameters
 """
 burn = 5000
 T = 100
+
+"""
+----------------------------------------------
+Particle Filter Parameters
+----------------------------------------------
+"""
+num_particles = 1000
+particle_noise = Normal(0, 0.001)
+
+"""
+----------------------------------------------
+Discrete Filter Parameters
+----------------------------------------------
+"""
+probs = (1/M)*ones(M)
+@load "points1000.jld2"
+weighted_points = vcat([probs' for i = 1:4]...).*points
+dist_hist = []
+#push!(dist_hist, copy(probs))
 
 """
 ----------------------------------------------
